@@ -43,8 +43,7 @@ def scrape_user_details(user_id):
         elif response.status_code == 404:
             logging.warning(f"User details not found for ID: {user_id}")
         else:
-            response.raise_for_status(
-            )  # Raise exception for other bad responses (4xx or 5xx)
+            response.raise_for_status()
     except requests.RequestException as e:
         logging.error(f"Error fetching URL {url}: {e}")
     return None
@@ -107,10 +106,17 @@ def check_and_scrape_missing_user_ids():
     while True:
         existing_user_ids = set()
 
-        with open('tt2_players.csv', newline='', encoding='utf-8') as csvfile:
-            reader = csv.DictReader(csvfile)
-            for row in reader:
-                existing_user_ids.add(int(row['User ID']))
+        try:
+            with open('tt2_players.csv', newline='', encoding='utf-8') as csvfile:
+                reader = csv.DictReader(csvfile)
+                for row in reader:
+                    try:
+                        user_id = int(row['User ID'].strip())
+                        existing_user_ids.add(user_id)
+                    except (ValueError, KeyError):
+                        logging.warning(f"Skipping corrupted or invalid row: {row}")
+        except FileNotFoundError:
+            logging.info("CSV file not found. Starting fresh.")
 
         missing_user_ids = [
             user_id for user_id in range(start_id, end_id + 1)
@@ -119,14 +125,13 @@ def check_and_scrape_missing_user_ids():
 
         if missing_user_ids:
             iteration += 1
-            print(f"Iteration {iteration}: Range {start_id} - {end_id}")
+            logging.info(f"Iteration {iteration}: Range {start_id} - {end_id}")
             with ThreadPoolExecutor(max_workers=4) as executor:
                 for user_id in missing_user_ids:
                     executor.submit(process_user, user_id)
                     time.sleep(random.uniform(0.2, 0.8))
-
         else:
-            print("No missing user IDs found. Exiting loop.")
+            logging.info("No missing user IDs found. Exiting loop.")
             break
 
 
